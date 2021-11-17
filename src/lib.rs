@@ -29,10 +29,12 @@ mod tx;
 use tx::TxRing;
 pub use tx::{TxDescriptor, TxError, TxRingEntry};
 pub mod setup;
-pub use setup::EthPins;
 use setup::{
-    AlternateVeryHighSpeed, RmiiCrsDv, RmiiRefClk, RmiiRxD0, RmiiRxD1, RmiiTxD0, RmiiTxD1, RmiiTxEN,
+    AlternateVeryHighSpeed, MiiCol, MiiCrs, MiiRxClk, MiiRxD0, MiiRxD1, MiiRxD2, MiiRxD3, MiiRxDv,
+    MiiRxEr, MiiTxClk, MiiTxD0, MiiTxD1, MiiTxD2, MiiTxD3, MiiTxEn, RmiiCrsDv, RmiiRefClk,
+    RmiiRxD0, RmiiRxD1, RmiiTxD0, RmiiTxD1, RmiiTxEN,
 };
+pub use setup::{EthPins, EthPinsMii};
 
 #[cfg(feature = "smoltcp-phy")]
 pub use smoltcp;
@@ -100,7 +102,57 @@ impl<'rx, 'tx> Eth<'rx, 'tx> {
         RXD0: RmiiRxD0 + AlternateVeryHighSpeed,
         RXD1: RmiiRxD1 + AlternateVeryHighSpeed,
     {
-        setup::setup();
+        setup::setup(true);
+        pins.setup_pins();
+        let mut eth = Eth {
+            eth_mac,
+            eth_dma,
+            rx_ring: RxRing::new(rx_buffer),
+            tx_ring: TxRing::new(tx_buffer),
+        };
+        eth.init(clocks)?;
+        eth.rx_ring.start(&eth.eth_dma);
+        eth.tx_ring.start(&eth.eth_dma);
+        Ok(eth)
+    }
+
+    #[rustfmt::skip]
+    pub fn new_mii<
+        TXCLK, TXD0, TXD1, TXD2, TXD3, TXEN,
+        RXCLK, RXD0, RXD1, RXD2, RXD3, RXDV, RXER, CRS, COL,
+    >(
+        eth_mac: ETHERNET_MAC,
+        eth_dma: ETHERNET_DMA,
+        rx_buffer: &'rx mut [RxRingEntry],
+        tx_buffer: &'tx mut [TxRingEntry],
+        clocks: Clocks,
+        pins: EthPinsMii<
+            TXCLK, TXD0, TXD1, TXD2, TXD3, TXEN,
+            RXCLK, RXD0, RXD1, RXD2, RXD3, RXDV, RXER, CRS, COL,
+        >,
+    ) -> Result<Self, WrongClock>
+    where
+        TXCLK: MiiTxClk, TXD0: MiiTxD0, TXD1: MiiTxD1, TXD2: MiiTxD2, TXD3: MiiTxD3, TXEN: MiiTxEn,
+        RXCLK: MiiRxClk, RXD0: MiiRxD0, RXD1: MiiRxD1, RXD2: MiiRxD2, RXD3: MiiRxD3, RXDV: MiiRxDv, RXER: MiiRxEr,
+        CRS: MiiCrs, COL: MiiCol,
+
+        TXCLK: AlternateVeryHighSpeed,
+        TXD0: AlternateVeryHighSpeed,
+        TXD1: AlternateVeryHighSpeed,
+        TXD2: AlternateVeryHighSpeed,
+        TXD3: AlternateVeryHighSpeed,
+        TXEN: AlternateVeryHighSpeed,
+        RXCLK: AlternateVeryHighSpeed,
+        RXD0: AlternateVeryHighSpeed,
+        RXD1: AlternateVeryHighSpeed,
+        RXD2: AlternateVeryHighSpeed,
+        RXD3: AlternateVeryHighSpeed,
+        RXDV: AlternateVeryHighSpeed,
+        RXER: AlternateVeryHighSpeed,
+        CRS: AlternateVeryHighSpeed,
+        COL: AlternateVeryHighSpeed,
+    {
+        setup::setup(false);
         pins.setup_pins();
         let mut eth = Eth {
             eth_mac,
